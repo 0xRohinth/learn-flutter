@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/product_provider.dart';
+import '../database/db_helper.dart';
 import '../models/product.dart';
 
 class AddProductScreen extends StatefulWidget {
-  const AddProductScreen({super.key});
+  final Product? product; // if null → Add mode, else → Edit mode
+
+  const AddProductScreen({super.key, this.product});
 
   @override
   State<AddProductScreen> createState() => _AddProductScreenState();
@@ -12,70 +13,90 @@ class AddProductScreen extends StatefulWidget {
 
 class _AddProductScreenState extends State<AddProductScreen> {
   final _formKey = GlobalKey<FormState>();
-  String name = "";
-  String sellerName = "";
-  String unit = "";
-  double purchasePrice = 0.0;
-  double sellingPrice = 0.0;
-  int stock = 0;
+
+  final _nameController = TextEditingController();
+  final _sellerController = TextEditingController();
+  final _unitController = TextEditingController();
+  final _b2bController = TextEditingController();
+  final _b2cController = TextEditingController();
+  final _stockController = TextEditingController();
+  final _notesController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.product != null) {
+      _nameController.text = widget.product!.name;
+      _sellerController.text = widget.product!.sellerName;
+      _unitController.text = widget.product!.unit;
+      _b2bController.text = widget.product!.b2bPrice.toString();
+      _b2cController.text = widget.product!.b2cPrice.toString();
+      _stockController.text = widget.product!.stockQty.toString();
+      _notesController.text = widget.product!.notes;
+    }
+  }
+
+  Future<void> _saveProduct() async {
+    if (_formKey.currentState!.validate()) {
+      final newProduct = Product(
+        id: widget.product?.id,
+        name: _nameController.text,
+        sellerName: _sellerController.text,
+        unit: _unitController.text,
+        b2bPrice: double.parse(_b2bController.text),
+        b2cPrice: double.parse(_b2cController.text),
+        stockQty: int.parse(_stockController.text),
+        notes: _notesController.text,
+      );
+
+      if (widget.product == null) {
+        await DBHelper.insertProduct(newProduct);
+      } else {
+        await DBHelper.updateProduct(newProduct);
+      }
+
+      if (mounted) Navigator.pop(context, true); // return true = refresh list
+    }
+  }
+
+  Widget _buildTextField(String label, TextEditingController controller,
+      {TextInputType inputType = TextInputType.text}) {
+    return TextFormField(
+      controller: controller,
+      decoration: InputDecoration(labelText: label),
+      keyboardType: inputType,
+      validator: (value) =>
+          value == null || value.isEmpty ? "Enter $label" : null,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Add Product")),
+      appBar: AppBar(
+        title: Text(widget.product == null ? "Add Product" : "Edit Product"),
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _formKey,
           child: ListView(
             children: [
-              TextFormField(
-                decoration: const InputDecoration(labelText: "Product Name"),
-                onSaved: (val) => name = val ?? "",
-              ),
-              TextFormField(
-                decoration: const InputDecoration(labelText: "Seller Name"),
-                onSaved: (val) => sellerName = val ?? "",
-              ),
-              TextFormField(
-                decoration: const InputDecoration(labelText: "Unit"),
-                onSaved: (val) => unit = val ?? "",
-              ),
-              TextFormField(
-                decoration: const InputDecoration(labelText: "Purchase Price"),
-                keyboardType: TextInputType.number,
-                onSaved: (val) =>
-                    purchasePrice = double.tryParse(val ?? "0") ?? 0,
-              ),
-              TextFormField(
-                decoration: const InputDecoration(labelText: "Selling Price"),
-                keyboardType: TextInputType.number,
-                onSaved: (val) =>
-                    sellingPrice = double.tryParse(val ?? "0") ?? 0,
-              ),
-              TextFormField(
-                decoration: const InputDecoration(labelText: "Stock"),
-                keyboardType: TextInputType.number,
-                onSaved: (val) => stock = int.tryParse(val ?? "0") ?? 0,
-              ),
+              _buildTextField("Product Name", _nameController),
+              _buildTextField("Seller Name", _sellerController),
+              _buildTextField("Unit", _unitController),
+              _buildTextField("B2B Price", _b2bController,
+                  inputType: TextInputType.number),
+              _buildTextField("B2C Price", _b2cController,
+                  inputType: TextInputType.number),
+              _buildTextField("Stock Quantity", _stockController,
+                  inputType: TextInputType.number),
+              _buildTextField("Notes", _notesController),
               const SizedBox(height: 20),
               ElevatedButton(
-                child: const Text("Save"),
-                onPressed: () {
-                  _formKey.currentState?.save();
-                  final product = Product(
-                    name: name,
-                    sellerName: sellerName,
-                    unit: unit,
-                    purchasePrice: purchasePrice,
-                    sellingPrice: sellingPrice,
-                    stock: stock,
-                  );
-                  Provider.of<ProductProvider>(context, listen: false)
-                      .addProduct(product);
-                  Navigator.pop(context);
-                },
-              )
+                onPressed: _saveProduct,
+                child: Text(widget.product == null ? "Add" : "Update"),
+              ),
             ],
           ),
         ),
